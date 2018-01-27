@@ -8,7 +8,7 @@ A collection of HTML widgets.
 * Handles postponed games, extra innings, doubleheaders, and no game
 * Adding the SVG logos is an excercise left to the reader
 
-![MLBScoreboard MLB with XML](https://github.com/michaelpmaley/widgets/MLBScoreboard-mlbxml.png)
+![MLBScoreboard MLB with XML](https://github.com/michaelpmaley/widgets/MLBScoreboard-MLBXML.png)
 
 ### Action Items
 
