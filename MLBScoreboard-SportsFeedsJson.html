@@ -1,0 +1,178 @@
+<!-- MLBScoreboard Widget Begin -->
+<script type="text/javascript">
+(function() { // anonymous function to protect the rest of the page
+   var authorizationValue = "Basic XXXXXXXXXXXXXXXX="; // replace with your generated token
+   var svgMap = {"ARI":109,"ATL":144,"BAL":110,"BOS":111,"CHC":112,"CIN":113,"CLE":114,"COL":115,"CWS":145,"DET":116,"HOU":117,"KC":118,"LAA":108,"LAD":119,"MIA":146,"MIL":158,"MIN":142,"NYM":121,"NYY":147,"OAK":133,"PHI":143,"PIT":134,"SD":135,"SEA":136,"SF":137,"STL":138,"TB":139,"TEX":140,"TOR":141,"WAS":120};
+
+   var team = "STL"; // should be capitals
+
+   var today = new Date();
+   if (today.getHours() <= 11) { today.setDate(today.getDate() - 1); } // if in the AM, get yesterday's game
+   var year = "" + today.getFullYear();
+   var month = "" + (today.getMonth() + 1); if (month.length == 1) { month = "0" + month; }
+   var day = "" + today.getDate(); if (day.length == 1) { day = "0" + day; }
+   var date = year+month+day;
+   // DEBUG: override and hardcode this value to a specific date: 20170503 = postponed; 20170523 = extra innings; 20170613 = doubleheader; 20170918 = no game
+   //var date = "20170804";
+
+   var url = "https://api.mysportsfeeds.com/v1.1/pull/mlb/current/scoreboard.json?fordate=" + date + "&team=" + team; // DEBUG: 2017-regular | current
+   var xhr = new XMLHttpRequest();
+   xhr.onreadystatechange = function() {
+      if (this.readyState == 4) {
+         if (this.status == 200) {
+            CreateScoreboard(JSON.parse(this.responseText), team);
+         }
+         else {
+            document.getElementById("mlbscoreboardwidget").innerHTML = "No data available. [" + this.status + "]";
+         }
+      }
+    };
+   xhr.open("GET", url, true);
+   xhr.setRequestHeader("Accept-Encoding", "gzip");
+   xhr.setRequestHeader("Authorization", authorizationValue);
+   xhr.send();
+
+   function CreateScoreboard(data, team) {
+      var games = data.scoreboard.gameScore.filter(function(x) {return x.game.awayTeam.Abbreviation == team || x.game.homeTeam.Abbreviation == team})
+      if (games == null || games.length === 0) {
+         document.getElementById("mlbscoreboardwidget").innerHTML = "No game today.";
+         return;
+      }
+      var doubleheader = games.length === 2 ? true : false;
+      var game = (!doubleheader || games[0].isCompleted !== "true") ? games[0] : games[1];
+
+      // 1. get game data
+      var gameNumber = "Game " + ((!doubleheader || games[0].isCompleted !== "true") ? "1 " : "2 ");
+      if (game.isCompleted == "true") {
+         var yesterday = game.game.date !== (new Date()).toISOString().slice(0, 10);
+         var gameStatus = (yesterday ? "Yesterday's " : "") + (doubleheader ? gameNumber : "") + "Final";
+      } else if (game.isInProgress == "true") {
+         var inningState = game.currentInningHalf === "top" ? "Top " : "Bot ";
+         var inningNumber = game.currentInning;
+         var gameStatus = (doubleheader ? gameNumber : "") + inningState + inningNumber;
+      } else if (game.isUnplayed == "true") {
+         var gameStatus = (doubleheader ? gameNumber : "") + "Warmup";
+      } else if (game.scheduleStatus !== "Normal") {
+         var gameStatus = (doubleheader ? gameNumber : "") + "Postponed";
+      } else {
+         var gameStatus = "Unknown";
+      }
+      var gameInnings = game.inningSummary.inning;
+
+      // 2. get team data
+      var awayTeam = game.game.awayTeam.Abbreviation;
+      var awayTeamId = svgMap[awayTeam];
+      var awayTeamName = game.game.awayTeam.Name;
+      var awayTeamRecord = "";
+      var awayTeamRuns = game.awayScore;
+      var awayTeamHits = "";
+      var awayTeamErrors = "";
+      var homeTeam = game.game.homeTeam.Abbreviation;
+      var homeTeamId = svgMap[homeTeam];
+      var homeTeamName = game.game.homeTeam.Name;
+      var homeTeamRecord = "";
+      var homeTeamRuns = game.homeScore;
+      var homeTeamHits = "";
+      var homeTeamErrors = "";
+      var awayTeamInnings = [];
+      var homeTeamInnings = [];
+      for (i = 0; i < gameInnings.length; i++) {
+         awayTeamInnings.push(gameInnings[i].awayScore);
+         homeTeamInnings.push(gameInnings[i].homeScore);
+      }
+
+      // 3. update HTML
+      document.getElementById("mlbscoreboardwidget-gamestatus").textContent = gameStatus;
+      document.getElementById("mlbscoreboardwidget-awayteamlogo").setAttribute("xlink:href", "#team-cap-on-light-" + awayTeamId);
+      document.getElementById("mlbscoreboardwidget-awayteamname").textContent = awayTeamName;
+      document.getElementById("mlbscoreboardwidget-awayteamrecord").textContent = awayTeamRecord;
+      document.getElementById("mlbscoreboardwidget-awayteamruns").textContent = awayTeamRuns;
+      document.getElementById("mlbscoreboardwidget-awayteamhits").textContent = awayTeamHits;
+      document.getElementById("mlbscoreboardwidget-awayteamerrors").textContent = awayTeamErrors;
+      document.getElementById("mlbscoreboardwidget-hometeamlogo").setAttribute("xlink:href", "#team-cap-on-light-" + homeTeamId);
+      document.getElementById("mlbscoreboardwidget-hometeamname").textContent = homeTeamName;
+      document.getElementById("mlbscoreboardwidget-hometeamrecord").textContent = homeTeamRecord;
+      document.getElementById("mlbscoreboardwidget-hometeamruns").textContent = homeTeamRuns;
+      document.getElementById("mlbscoreboardwidget-hometeamhits").textContent = homeTeamHits;
+      document.getElementById("mlbscoreboardwidget-hometeamerrors").textContent = homeTeamErrors;
+      for (i = 0; i < awayTeamInnings.length; i++) {
+         if (i >= 9) { // extra innings
+            var tr = document.getElementById("mlbscoreboardwidget-header");
+            var td = document.createElement('td');
+            td.innerHTML = i + 1;
+            tr.insertBefore(td, document.getElementById("mlbscoreboardwidget-headerinningbreak"));
+            var tr = document.getElementById("mlbscoreboardwidget-awayteam");
+            var td = document.createElement('td');
+            tr.insertBefore(td, document.getElementById("mlbscoreboardwidget-awayinningbreak"));
+            var tr = document.getElementById("mlbscoreboardwidget-hometeam");
+            var td = document.createElement('td');
+            tr.insertBefore(td, document.getElementById("mlbscoreboardwidget-homeinningbreak"));
+         }
+         document.getElementById("mlbscoreboardwidget-awayteam").getElementsByTagName("td")[i + 2].innerHTML = awayTeamInnings[i];
+         document.getElementById("mlbscoreboardwidget-hometeam").getElementsByTagName("td")[i + 2].innerHTML = homeTeamInnings[i];
+      }
+   }
+})(); // call our anonymous function immediately
+</script>
+<div id="mlbscoreboardwidget">
+   <table cellspacing="0" cellpadding="5" style="width:100%;"">
+      <thead>
+         <tr id="mlbscoreboardwidget-header" style="text-align: center; background-color: #F7F7F7;">
+            <td colspan="2" style="text-align: left;"><span id="mlbscoreboardwidget-gamestatus"></span></td>
+            <td>1</td>
+            <td>2</td>
+            <td>3</td>
+            <td>4</td>
+            <td>5</td>
+            <td>6</td>
+            <td>7</td>
+            <td>8</td>
+            <td>9</td>
+            <td id="mlbscoreboardwidget-headerinningbreak"> </td>
+            <td>R</td>
+            <td>H</td>
+            <td>E</td>
+         </tr>
+      </thead>
+      <tbody>
+         <tr id="mlbscoreboardwidget-awayteam" style="text-align: center;"> <!-- away team -->
+            <td style="text-align: left; width: 1.7rem"><svg style="height: 1.5rem; width: 1.5rem; vertical-align: middle;"><use id="mlbscoreboardwidget-awayteamlogo" xlink:href="#team-cap-on-light-99"></use></svg></td>
+            <td style="text-align: left;"><span id="mlbscoreboardwidget-awayteamname" style="font-weight: bold;">AWAY</span><br/><span id="mlbscoreboardwidget-awayteamrecord" style="font-size:80%;"></span></td>
+            <td></td>
+            <td></td>
+            <td></td>
+            <td></td>
+            <td></td>
+            <td></td>
+            <td></td>
+            <td></td>
+            <td></td>
+            <td id="mlbscoreboardwidget-awayinningbreak"> </td>
+            <td style="background-color: #F7F7F7;"><span id="mlbscoreboardwidget-awayteamruns" style="font-weight: bold;">0</span></td>
+            <td><span id="mlbscoreboardwidget-awayteamhits">0</span></td>
+            <td><span id="mlbscoreboardwidget-awayteamerrors">0</span></td>
+         </tr>
+         <tr id="mlbscoreboardwidget-hometeam" style="text-align: center;"> <!-- home team -->
+            <td style="text-align: left; width: 1.7rem"><svg style="height: 1.5rem; width: 1.5rem; vertical-align: middle;"><use id="mlbscoreboardwidget-hometeamlogo" xlink:href="#team-cap-on-light-99"></use></svg></td>
+            <td style="text-align: left;"><span id="mlbscoreboardwidget-hometeamname" style="font-weight: bold;">HOME</span><br/><span id="mlbscoreboardwidget-hometeamrecord" style="font-size:80%;"></span></td>
+            <td></td>
+            <td></td>
+            <td></td>
+            <td></td>
+            <td></td>
+            <td></td>
+            <td></td>
+            <td></td>
+            <td></td>
+            <td id="mlbscoreboardwidget-homeinningbreak"> </td>
+            <td style="background-color: #F7F7F7;"><span id="mlbscoreboardwidget-hometeamruns" style="font-weight: bold;">0</span></td>
+            <td><span id="mlbscoreboardwidget-hometeamhits">0</span></td>
+            <td><span id="mlbscoreboardwidget-hometeamerrors">0</span></td>
+         </tr>
+      </tbody>
+   </table>
+</div>
+
+<!-- svg section left as an exercise for the reader -->
+
+<!-- MLBScoreboard Widget End -->
